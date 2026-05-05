@@ -9,7 +9,7 @@ import { DEFAULT_BREAK_MINUTES, DEFAULT_FOCUS_MINUTES } from '../constants/durat
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useTimer } from '../hooks/useTimer';
 import { localSessionStore } from '../services/sessionStorage';
-import { minutesToSeconds } from '../services/time';
+import { formatDuration, minutesToSeconds } from '../services/time';
 import type { FocusSession, FinishReason } from '../types/session';
 import type { TimerConfig, TimerSnapshot } from '../types/timer';
 
@@ -110,6 +110,16 @@ export function App() {
   }, [normalizedConfig, timer.snapshot.status]);
 
   const formDisabled = timer.snapshot.status === 'running' || timer.snapshot.status === 'paused';
+  const stats = useMemo(() => {
+    const totalFocusSeconds = sessions.reduce((total, session) => total + session.actualDurationSeconds, 0);
+    const breaksStarted = sessions.filter((session) => session.breakStarted).length;
+
+    return {
+      focusTime: formatDuration(totalFocusSeconds),
+      completed: sessions.length,
+      breaksStarted,
+    };
+  }, [sessions]);
 
   const startFocus = () => {
     setPendingBreakSession(null);
@@ -177,6 +187,20 @@ export function App() {
           {pendingBreakSession ? (
             <BreakPrompt onSkipBreak={skipBreak} onStartBreak={startBreak} session={pendingBreakSession} />
           ) : null}
+          <section className="stats-strip" aria-label="Focus stats">
+            <div>
+              <span>Total focus</span>
+              <strong>{stats.focusTime}</strong>
+            </div>
+            <div>
+              <span>Completed</span>
+              <strong>{stats.completed}</strong>
+            </div>
+            <div>
+              <span>Breaks</span>
+              <strong>{stats.breaksStarted}</strong>
+            </div>
+          </section>
         </div>
 
         <aside className="secondary-column">

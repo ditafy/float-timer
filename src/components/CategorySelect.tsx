@@ -9,15 +9,20 @@ export function CategorySelect({ value, onChange }: CategorySelectProps) {
   const safeValue = normalizeCategoryId(value);
 
   return (
-    <label className="field">
-      <span>Category</span>
-      <select value={safeValue} onChange={(event) => onChange(event.target.value)}>
+    <div className="field-group">
+      <div className="field-label">Category</div>
+      <div className="category-row" role="group" aria-label="Category">
         {TASK_CATEGORIES.map((category) => (
-          <option key={category.id} value={category.id}>
+          <button
+            className={safeValue === category.id ? 'category-chip selected' : 'category-chip'}
+            key={category.id}
+            onClick={() => onChange(category.id)}
+            type="button"
+          >
             {category.label}
-          </option>
+          </button>
         ))}
-      </select>
-    </label>
+      </div>
+    </div>
   );
 }

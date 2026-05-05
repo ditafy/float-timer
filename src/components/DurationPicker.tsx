@@ -25,13 +25,13 @@ export function DurationPicker({ disabled, mode, value, onChange }: DurationPick
               onClick={() => onChange(presetSeconds)}
               type="button"
             >
-              {preset.label}
+              {preset.label} min
             </button>
           );
         })}
       </div>
-      <label className="inline-input">
-        <span>Custom minutes</span>
+      <label className="inline-input duration-inline">
+        <span className="inline-prefix">Custom</span>
         <input
           disabled={disabled || mode === 'countup'}
           min="1"
@@ -43,6 +43,7 @@ export function DurationPicker({ disabled, mode, value, onChange }: DurationPick
           type="number"
           value={mode === 'countup' ? '' : currentMinutes}
         />
+        <span className="unit-label">min</span>
       </label>
     </div>
   );
