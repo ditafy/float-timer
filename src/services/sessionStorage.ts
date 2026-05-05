@@ -1,14 +1,15 @@
+import { getCategoryLabel } from '../constants/categories';
 import type { FocusSession, SessionStore } from '../types/session';
 
 export const SESSION_STORAGE_KEY = 'float-timer.sessions.v1';
 
-function isFocusSession(value: unknown): value is FocusSession {
+function toFocusSession(value: unknown): FocusSession | null {
   if (!value || typeof value !== 'object') {
-    return false;
+    return null;
   }
 
   const session = value as Partial<FocusSession>;
-  return (
+  const hasSessionShape =
     typeof session.id === 'string' &&
     typeof session.taskName === 'string' &&
     typeof session.categoryId === 'string' &&
@@ -20,8 +21,30 @@ function isFocusSession(value: unknown): value is FocusSession {
     typeof session.endedAt === 'string' &&
     typeof session.completed === 'boolean' &&
     (session.finishReason === 'completed' || session.finishReason === 'manual') &&
-    typeof session.breakStarted === 'boolean'
-  );
+    typeof session.breakStarted === 'boolean';
+
+  if (!hasSessionShape) {
+    return null;
+  }
+
+  const validSession = session as FocusSession;
+
+  return {
+    id: validSession.id,
+    taskName: validSession.taskName,
+    categoryId: validSession.categoryId,
+    categoryLabel:
+      typeof session.categoryLabel === 'string' ? session.categoryLabel : getCategoryLabel(validSession.categoryId),
+    mode: validSession.mode,
+    plannedDurationSeconds: validSession.plannedDurationSeconds,
+    breakSeconds: validSession.breakSeconds,
+    actualDurationSeconds: validSession.actualDurationSeconds,
+    startedAt: validSession.startedAt,
+    endedAt: validSession.endedAt,
+    completed: validSession.completed,
+    finishReason: validSession.finishReason,
+    breakStarted: validSession.breakStarted,
+  };
 }
 
 function readSessions(): FocusSession[] {
@@ -36,7 +59,10 @@ function readSessions(): FocusSession[] {
       return [];
     }
 
-    return parsed.filter(isFocusSession);
+    return parsed.flatMap((item) => {
+      const session = toFocusSession(item);
+      return session ? [session] : [];
+    });
   } catch {
     return [];
   }

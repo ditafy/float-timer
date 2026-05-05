@@ -1,4 +1,4 @@
-import { TASK_CATEGORIES } from '../constants/categories';
+import { getCategoryColor, getCategoryLabel } from '../constants/categories';
 import { formatDuration } from '../services/time';
 import type { TimerConfig, TimerSnapshot } from '../types/timer';
 
@@ -8,7 +8,8 @@ type TimerDisplayProps = {
 };
 
 export function TimerDisplay({ config, snapshot }: TimerDisplayProps) {
-  const category = TASK_CATEGORIES.find((item) => item.id === config.categoryId);
+  const categoryLabel = getCategoryLabel(config.categoryId, config.customCategoryName);
+  const categoryColor = getCategoryColor(config.categoryId);
   const taskName = config.taskName.trim() || 'Ready when you are';
   const statusLabel =
     snapshot.status === 'idle'
@@ -19,11 +20,9 @@ export function TimerDisplay({ config, snapshot }: TimerDisplayProps) {
     <section className={`timer-face ${snapshot.kind}`}>
       <div className="timer-meta">
         <span className="status-pill">{statusLabel}</span>
-        {category ? (
-          <span className="category-pill" style={{ '--category-color': category.color } as React.CSSProperties}>
-            {category.label}
-          </span>
-        ) : null}
+        <span className="category-pill" style={{ '--category-color': categoryColor } as React.CSSProperties}>
+          {categoryLabel}
+        </span>
       </div>
       <h1>{taskName}</h1>
       <div className="time-readout" aria-live="polite">

@@ -1,4 +1,3 @@
-import { TASK_CATEGORIES } from '../constants/categories';
 import { formatDuration, formatSessionTime } from '../services/time';
 import type { FocusSession } from '../types/session';
 
@@ -23,23 +22,20 @@ export function SessionHistory({ sessions, onClear }: SessionHistoryProps) {
       </div>
 
       <div className="history-list">
-        {sessions.map((session) => {
-          const category = TASK_CATEGORIES.find((item) => item.id === session.categoryId);
-          return (
-            <article className="history-item" key={session.id}>
-              <div>
-                <h3>{session.taskName}</h3>
-                <p>
-                  {category?.label ?? 'Other'} · {formatSessionTime(session.endedAt)}
-                </p>
-              </div>
-              <div className="history-stats">
-                <strong>{formatDuration(session.actualDurationSeconds)}</strong>
-                <span>{session.breakStarted ? 'Break started' : session.breakSeconds > 0 ? 'Break skipped' : 'No break'}</span>
-              </div>
-            </article>
-          );
-        })}
+        {sessions.map((session) => (
+          <article className="history-item" key={session.id}>
+            <div>
+              <h3>{session.taskName}</h3>
+              <p>
+                {session.categoryLabel} · {formatSessionTime(session.endedAt)}
+              </p>
+            </div>
+            <div className="history-stats">
+              <strong>{formatDuration(session.actualDurationSeconds)}</strong>
+              <span>{session.breakStarted ? 'Break started' : session.breakSeconds > 0 ? 'Break skipped' : 'No break'}</span>
+            </div>
+          </article>
+        ))}
       </div>
     </section>
   );

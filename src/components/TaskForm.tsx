@@ -1,4 +1,5 @@
 import type { TimerConfig, TimerMode } from '../types/timer';
+import { CUSTOM_CATEGORY_ID } from '../constants/categories';
 import { BreakPicker } from './BreakPicker';
 import { CategorySelect } from './CategorySelect';
 import { DurationPicker } from './DurationPicker';
@@ -22,6 +23,14 @@ export function TaskForm({ config, disabled, onChange }: TaskFormProps) {
     });
   };
 
+  const setCategory = (categoryId: string) => {
+    onChange({
+      ...config,
+      categoryId,
+      customCategoryName: categoryId === CUSTOM_CATEGORY_ID ? config.customCategoryName ?? '' : undefined,
+    });
+  };
+
   return (
     <section className="panel setup-panel" aria-label="Timer setup">
       <label className="field task-field">
@@ -36,7 +45,20 @@ export function TaskForm({ config, disabled, onChange }: TaskFormProps) {
       </label>
 
       <div className="form-grid">
-        <CategorySelect value={config.categoryId} onChange={(categoryId) => update('categoryId', categoryId)} />
+        <CategorySelect value={config.categoryId} onChange={setCategory} />
+
+        {config.categoryId === CUSTOM_CATEGORY_ID ? (
+          <label className="field">
+            <span>Custom category</span>
+            <input
+              disabled={disabled}
+              onChange={(event) => update('customCategoryName', event.target.value)}
+              placeholder="Category name"
+              type="text"
+              value={config.customCategoryName ?? ''}
+            />
+          </label>
+        ) : null}
 
         <div className="field-group">
           <div className="field-label">Mode</div>

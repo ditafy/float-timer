@@ -6,6 +6,7 @@ export type FocusSession = {
   id: string;
   taskName: string;
   categoryId: string;
+  categoryLabel: string;
   mode: TimerMode;
   plannedDurationSeconds: number | null;
   breakSeconds: number;

@@ -4,6 +4,7 @@ import { SessionHistory } from '../components/SessionHistory';
 import { TaskForm } from '../components/TaskForm';
 import { TimerControls } from '../components/TimerControls';
 import { TimerDisplay } from '../components/TimerDisplay';
+import { CUSTOM_CATEGORY_ID, getCategoryLabel, normalizeCategoryId } from '../constants/categories';
 import { DEFAULT_BREAK_MINUTES, DEFAULT_FOCUS_MINUTES } from '../constants/durations';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useTimer } from '../hooks/useTimer';
@@ -14,7 +15,8 @@ import type { TimerConfig, TimerSnapshot } from '../types/timer';
 
 const DEFAULT_CONFIG: TimerConfig = {
   taskName: '',
-  categoryId: 'deep-work',
+  categoryId: 'study',
+  customCategoryName: '',
   mode: 'countdown',
   focusDurationSeconds: minutesToSeconds(DEFAULT_FOCUS_MINUTES),
   breakSeconds: minutesToSeconds(DEFAULT_BREAK_MINUTES),
@@ -28,6 +30,13 @@ export function App() {
   const [config, setConfig] = useLocalStorage<TimerConfig>('float-timer.config.v1', DEFAULT_CONFIG);
   const [sessions, setSessions] = useState<FocusSession[]>(() => localSessionStore.listSessions());
   const [pendingBreakSession, setPendingBreakSession] = useState<FocusSession | null>(null);
+  const normalizedConfig = useMemo<TimerConfig>(
+    () => ({
+      ...config,
+      categoryId: normalizeCategoryId(config.categoryId),
+    }),
+    [config],
+  );
 
   const refreshSessions = useCallback(() => {
     setSessions(localSessionStore.listSessions());
@@ -39,7 +48,8 @@ export function App() {
         return null;
       }
 
-      const plannedDurationSeconds = config.mode === 'countdown' ? config.focusDurationSeconds : null;
+      const plannedDurationSeconds =
+        normalizedConfig.mode === 'countdown' ? normalizedConfig.focusDurationSeconds : null;
       const actualDurationSeconds =
         finishReason === 'completed' && plannedDurationSeconds !== null
           ? plannedDurationSeconds
@@ -47,11 +57,12 @@ export function App() {
 
       const session: FocusSession = {
         id: createSessionId(),
-        taskName: config.taskName.trim(),
-        categoryId: config.categoryId,
-        mode: config.mode,
+        taskName: normalizedConfig.taskName.trim(),
+        categoryId: normalizedConfig.categoryId,
+        categoryLabel: getCategoryLabel(normalizedConfig.categoryId, normalizedConfig.customCategoryName),
+        mode: normalizedConfig.mode,
         plannedDurationSeconds,
-        breakSeconds: config.breakSeconds,
+        breakSeconds: normalizedConfig.breakSeconds,
         actualDurationSeconds,
         startedAt: snapshot.startedAtIso,
         endedAt: new Date().toISOString(),
@@ -71,7 +82,7 @@ export function App() {
 
       return session;
     },
-    [config, refreshSessions],
+    [normalizedConfig, refreshSessions],
   );
 
   const handleTimerComplete = useCallback(
@@ -90,10 +101,13 @@ export function App() {
   const timer = useTimer({ onComplete: handleTimerComplete });
 
   const canStart = useMemo(() => {
-    const hasTaskName = config.taskName.trim().length > 0;
-    const hasCountdownDuration = config.mode === 'countup' || (config.focusDurationSeconds ?? 0) > 0;
-    return hasTaskName && hasCountdownDuration && timer.snapshot.status === 'idle';
-  }, [config, timer.snapshot.status]);
+    const hasTaskName = normalizedConfig.taskName.trim().length > 0;
+    const hasCategory =
+      normalizedConfig.categoryId !== CUSTOM_CATEGORY_ID || (normalizedConfig.customCategoryName?.trim().length ?? 0) > 0;
+    const hasCountdownDuration =
+      normalizedConfig.mode === 'countup' || (normalizedConfig.focusDurationSeconds ?? 0) > 0;
+    return hasTaskName && hasCategory && hasCountdownDuration && timer.snapshot.status === 'idle';
+  }, [normalizedConfig, timer.snapshot.status]);
 
   const formDisabled = timer.snapshot.status === 'running' || timer.snapshot.status === 'paused';
 
@@ -101,8 +115,8 @@ export function App() {
     setPendingBreakSession(null);
     timer.start({
       kind: 'focus',
-      mode: config.mode,
-      durationSeconds: config.mode === 'countdown' ? config.focusDurationSeconds : null,
+      mode: normalizedConfig.mode,
+      durationSeconds: normalizedConfig.mode === 'countdown' ? normalizedConfig.focusDurationSeconds : null,
     });
   };
 
@@ -147,7 +161,7 @@ export function App() {
     <main className="app-shell">
       <section className="workspace">
         <div className="primary-column">
-          <TimerDisplay config={config} snapshot={timer.snapshot} />
+          <TimerDisplay config={normalizedConfig} snapshot={timer.snapshot} />
           <TimerControls
             canStart={canStart}
             onFinish={finishFocus}
@@ -166,7 +180,7 @@ export function App() {
         </div>
 
         <aside className="secondary-column">
-          <TaskForm config={config} disabled={formDisabled} onChange={setConfig} />
+          <TaskForm config={normalizedConfig} disabled={formDisabled} onChange={setConfig} />
           <SessionHistory sessions={sessions} onClear={clearHistory} />
         </aside>
       </section>

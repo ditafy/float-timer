@@ -5,6 +5,7 @@ export type TimerStatus = 'idle' | 'running' | 'paused' | 'finished';
 export type TimerConfig = {
   taskName: string;
   categoryId: string;
+  customCategoryName?: string;
   mode: TimerMode;
   focusDurationSeconds: number | null;
   breakSeconds: number;

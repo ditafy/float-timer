@@ -1,4 +1,4 @@
-import { TASK_CATEGORIES } from '../constants/categories';
+import { normalizeCategoryId, TASK_CATEGORIES } from '../constants/categories';
 
 type CategorySelectProps = {
   value: string;
@@ -6,10 +6,12 @@ type CategorySelectProps = {
 };
 
 export function CategorySelect({ value, onChange }: CategorySelectProps) {
+  const safeValue = normalizeCategoryId(value);
+
   return (
     <label className="field">
       <span>Category</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
+      <select value={safeValue} onChange={(event) => onChange(event.target.value)}>
         {TASK_CATEGORIES.map((category) => (
           <option key={category.id} value={category.id}>
             {category.label}
