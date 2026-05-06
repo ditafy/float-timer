@@ -45,7 +45,7 @@ export function TimerControls({
         </button>
       ) : null}
 
-      {snapshot.status !== 'idle' ? (
+      {snapshot.status === 'finished' ? (
         <button className="quiet-action" onClick={onReset} type="button">
           Reset
         </button>

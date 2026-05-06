@@ -43,7 +43,7 @@ export function App() {
   }, []);
 
   const saveFocusSession = useCallback(
-    (snapshot: TimerSnapshot, finishReason: FinishReason) => {
+    (snapshot: TimerSnapshot, finishReason: FinishReason, shouldPromptBreak: boolean) => {
       if (snapshot.kind !== 'focus' || !snapshot.startedAtIso) {
         return null;
       }
@@ -74,7 +74,7 @@ export function App() {
       localSessionStore.saveSession(session);
       refreshSessions();
 
-      if (session.breakSeconds > 0) {
+      if (shouldPromptBreak && session.breakSeconds > 0) {
         setPendingBreakSession(session);
       } else {
         setPendingBreakSession(null);
@@ -88,7 +88,7 @@ export function App() {
   const handleTimerComplete = useCallback(
     (snapshot: TimerSnapshot) => {
       if (snapshot.kind === 'focus') {
-        saveFocusSession(snapshot, 'completed');
+        saveFocusSession(snapshot, 'completed', true);
         return;
       }
 
@@ -133,7 +133,7 @@ export function App() {
   const finishFocus = () => {
     const snapshot = timer.finish();
     if (snapshot?.kind === 'focus') {
-      saveFocusSession(snapshot, 'manual');
+      saveFocusSession(snapshot, 'manual', false);
     }
   };
 

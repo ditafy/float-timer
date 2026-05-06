@@ -204,11 +204,10 @@ select:disabled {
   min-width: 58px;
   min-height: 58px;
   padding: 0 18px;
-  border: 1px solid rgb(255 255 255 / 56%);
+  border: 1px solid rgb(137 149 168 / 12%);
   border-radius: 999px;
   color: var(--ink);
   background: rgb(255 255 255 / 34%);
-  box-shadow: 0 12px 28px rgb(39 48 65 / 7%), inset 0 1px 0 rgb(255 255 255 / 72%);
   font-weight: 760;
 }
 
@@ -352,7 +351,6 @@ select:disabled {
   border-radius: 10px;
   color: var(--ink);
   background: rgb(255 255 255 / 30%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 62%);
   outline: none;
   backdrop-filter: blur(12px);
   font-size: 0.9rem;
