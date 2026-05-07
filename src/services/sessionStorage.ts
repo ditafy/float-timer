@@ -87,6 +87,11 @@ export const localSessionStore: SessionStore = {
     writeSessions(sessions.map((stored) => (stored.id === session.id ? session : stored)));
   },
 
+  deleteSession(id) {
+    const sessions = readSessions();
+    writeSessions(sessions.filter((session) => session.id !== id));
+  },
+
   clearSessions() {
     window.localStorage.removeItem(SESSION_STORAGE_KEY);
   },

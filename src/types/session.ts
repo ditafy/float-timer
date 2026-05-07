@@ -22,5 +22,6 @@ export interface SessionStore {
   listSessions(): FocusSession[];
   saveSession(session: FocusSession): void;
   updateSession(session: FocusSession): void;
+  deleteSession(id: string): void;
   clearSessions(): void;
 }

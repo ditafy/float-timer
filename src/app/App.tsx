@@ -13,6 +13,11 @@ import { formatDuration, formatSessionTime, minutesToSeconds } from '../services
 import type { FocusSession, FinishReason } from '../types/session';
 import type { TimerConfig, TimerSnapshot } from '../types/timer';
 
+type DeleteConfirmation =
+  | { kind: 'clear-all' }
+  | { kind: 'single'; sessionId: string }
+  | null;
+
 const DEFAULT_CONFIG: TimerConfig = {
   taskName: '',
   categoryId: 'study',
@@ -63,6 +68,7 @@ export function App() {
   const [sessions, setSessions] = useState<FocusSession[]>(() => localSessionStore.listSessions());
   const [pendingBreakSession, setPendingBreakSession] = useState<FocusSession | null>(null);
   const [view, setView] = useState<'timer' | 'history'>('timer');
+  const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation>(null);
   const normalizedConfig = useMemo<TimerConfig>(
     () => ({
       ...config,
@@ -215,6 +221,21 @@ export function App() {
     refreshSessions();
   };
 
+  const deleteSession = (sessionId: string) => {
+    localSessionStore.deleteSession(sessionId);
+    refreshSessions();
+  };
+
+  const confirmDeletion = () => {
+    if (deleteConfirmation?.kind === 'clear-all') {
+      clearHistory();
+    } else if (deleteConfirmation?.kind === 'single') {
+      deleteSession(deleteConfirmation.sessionId);
+    }
+
+    setDeleteConfirmation(null);
+  };
+
   if (view === 'history') {
     return (
       <main className="app-shell">
@@ -267,8 +288,8 @@ export function App() {
                 <p>{sessions.length === 0 ? 'No sessions saved yet.' : 'Full session history'}</p>
               </div>
               {sessions.length > 0 ? (
-                <button className="quiet-action small" onClick={clearHistory} type="button">
-                  Clear
+                <button className="quiet-action small" onClick={() => setDeleteConfirmation({ kind: 'clear-all' })} type="button">
+                  Clear all history
                 </button>
               ) : null}
             </div>
@@ -276,20 +297,49 @@ export function App() {
             <div className="history-list">
               {sessions.map((session) => (
                 <article className="history-item" key={session.id}>
-                  <div>
+                  <div className="history-item-main">
                     <h3>{session.taskName}</h3>
                     <p>
                       {session.categoryLabel} · {formatSessionTime(session.endedAt)}
                     </p>
                   </div>
-                  <div className="history-stats">
-                    <strong>{formatDuration(session.actualDurationSeconds)}</strong>
-                    <span>{session.breakStarted ? 'Break started' : session.breakSeconds > 0 ? 'Break skipped' : 'No break'}</span>
+                  <div className="history-item-actions">
+                    <div className="history-stats">
+                      <strong>{formatDuration(session.actualDurationSeconds)}</strong>
+                      <span>{session.breakStarted ? 'Break started' : session.breakSeconds > 0 ? 'Break skipped' : 'No break'}</span>
+                    </div>
+                    <button
+                      aria-label={`Delete ${session.taskName} history record`}
+                      className="delete-history-button"
+                      onClick={() => setDeleteConfirmation({ kind: 'single', sessionId: session.id })}
+                      type="button"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </article>
               ))}
             </div>
           </section>
+          {deleteConfirmation ? (
+            <div className="confirm-backdrop" role="presentation">
+              <section className="confirm-dialog" aria-modal="true" role="dialog">
+                <h2>
+                  {deleteConfirmation.kind === 'clear-all'
+                    ? 'Are you sure you want to delete all history?'
+                    : 'Are you sure you want to delete this history record?'}
+                </h2>
+                <div className="confirm-actions">
+                  <button className="quiet-action small" onClick={() => setDeleteConfirmation(null)} type="button">
+                    Cancel
+                  </button>
+                  <button className="primary-action small" onClick={confirmDeletion} type="button">
+                    Confirm
+                  </button>
+                </div>
+              </section>
+            </div>
+          ) : null}
         </section>
       </main>
     );
