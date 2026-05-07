@@ -26,6 +26,38 @@ function createSessionId(): string {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function getDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getStartOfDay(date: Date): Date {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+function getStartOfWeek(date: Date): Date {
+  const start = getStartOfDay(date);
+  const daysSinceMonday = (start.getDay() + 6) % 7;
+  start.setDate(start.getDate() - daysSinceMonday);
+  return start;
+}
+
+function formatStatDuration(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+
+  if (hours > 0) {
+    return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+  }
+
+  return `${minutes}m`;
+}
+
 export function App() {
   const [config, setConfig] = useLocalStorage<TimerConfig>('float-timer.config.v1', DEFAULT_CONFIG);
   const [sessions, setSessions] = useState<FocusSession[]>(() => localSessionStore.listSessions());
@@ -112,13 +144,28 @@ export function App() {
 
   const formDisabled = timer.snapshot.status === 'running' || timer.snapshot.status === 'paused';
   const stats = useMemo(() => {
-    const totalFocusSeconds = sessions.reduce((total, session) => total + session.actualDurationSeconds, 0);
-    const breaksStarted = sessions.filter((session) => session.breakStarted).length;
+    const todayKey = getDateKey(new Date());
+    const startOfWeek = getStartOfWeek(new Date());
+    const sessionDays = new Set(sessions.map((session) => getDateKey(new Date(session.endedAt))));
+    const todayFocusSeconds = sessions
+      .filter((session) => getDateKey(new Date(session.endedAt)) === todayKey)
+      .reduce((total, session) => total + session.actualDurationSeconds, 0);
+    const weekFocusSeconds = sessions
+      .filter((session) => new Date(session.endedAt) >= startOfWeek)
+      .reduce((total, session) => total + session.actualDurationSeconds, 0);
+    let streakDays = 0;
+    const streakDate = getStartOfDay(new Date());
+
+    while (sessionDays.has(getDateKey(streakDate))) {
+      streakDays += 1;
+      streakDate.setDate(streakDate.getDate() - 1);
+    }
 
     return {
-      focusTime: formatDuration(totalFocusSeconds),
+      todayFocusTime: formatStatDuration(todayFocusSeconds),
       completed: sessions.length,
-      breaksStarted,
+      streakDays,
+      weekFocusTime: formatStatDuration(weekFocusSeconds),
     };
   }, [sessions]);
 
@@ -183,17 +230,33 @@ export function App() {
           </div>
 
           <section className="stats-strip" aria-label="Focus stats">
-            <div>
-              <span>Total focus</span>
-              <strong>{stats.focusTime}</strong>
+            <div className="stats-item">
+              <span className="stat-label">
+                Today
+              </span>
+              <strong>{stats.todayFocusTime}</strong>
+              <small>Focus time</small>
             </div>
-            <div>
-              <span>Completed</span>
+            <div className="stats-item">
+              <span className="stat-label">
+                Sessions
+              </span>
               <strong>{stats.completed}</strong>
+              <small>Completed</small>
             </div>
-            <div>
-              <span>Breaks</span>
-              <strong>{stats.breaksStarted}</strong>
+            <div className="stats-item">
+              <span className="stat-label">
+                Streak
+              </span>
+              <strong>{stats.streakDays}</strong>
+              <small>Days</small>
+            </div>
+            <div className="stats-item">
+              <span className="stat-label">
+                This week
+              </span>
+              <strong>{stats.weekFocusTime}</strong>
+              <small>Focus time</small>
             </div>
           </section>
 

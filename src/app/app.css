@@ -272,35 +272,47 @@ select:disabled {
 
 .stats-strip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
-  padding: 18px;
+  padding: 26px 22px;
+  border-radius: 24px;
+  background: rgb(255 255 255 / 34%);
+  box-shadow: 0 20px 58px rgb(39 48 65 / 8%), inset 0 1px 0 rgb(255 255 255 / 70%);
 }
 
-.stats-strip div {
+.stats-item {
   display: grid;
-  justify-items: center;
-  gap: 6px;
+  justify-items: start;
+  gap: 14px;
   min-width: 0;
-  padding: 4px 14px;
-  text-align: center;
+  padding: 2px 34px;
+  text-align: left;
 }
 
-.stats-strip div + div {
+.stats-item + .stats-item {
   border-left: 1px solid var(--line);
 }
 
-.stats-strip span {
+.stat-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
   color: var(--muted);
-  font-size: 0.8rem;
-  font-weight: 740;
+  font-size: 0.90rem;
+  font-weight: 500;
 }
 
 .stats-strip strong {
   color: var(--ink);
-  font-size: 1.35rem;
-  font-weight: 740;
+  font-size: 1.8rem;
+  font-weight: 480;
   line-height: 1;
+}
+
+.stats-strip small {
+  color: var(--muted);
+  font-size: 0.80rem;
+  font-weight: 450;
 }
 
 .history-view {
@@ -607,7 +619,11 @@ select:disabled {
     grid-template-columns: 1fr;
   }
 
-  .stats-strip div + div {
+  .stats-item {
+    padding: 18px;
+  }
+
+  .stats-item + .stats-item {
     border-top: 1px solid var(--line);
     border-left: 0;
   }
