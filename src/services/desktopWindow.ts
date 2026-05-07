@@ -4,7 +4,9 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 type DesktopWindowMode = 'full' | 'mini';
 
 const FULL_WINDOW_SIZE = new LogicalSize(1200, 760);
-const MINI_WINDOW_SIZE = new LogicalSize(360, 220);
+const FULL_MIN_WINDOW_SIZE = new LogicalSize(900, 620);
+const MINI_WINDOW_SIZE = new LogicalSize(350, 160);
+const MINI_MIN_WINDOW_SIZE = new LogicalSize(350, 160);
 
 function isTauriRuntime(): boolean {
   return typeof window !== 'undefined' && Boolean((window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
@@ -18,6 +20,7 @@ export async function applyDesktopWindowMode(mode: DesktopWindowMode): Promise<v
   const appWindow = getCurrentWindow();
 
   try {
+    await appWindow.setMinSize(mode === 'mini' ? MINI_MIN_WINDOW_SIZE : FULL_MIN_WINDOW_SIZE);
     await appWindow.setAlwaysOnTop(mode === 'mini');
     await appWindow.setSize(mode === 'mini' ? MINI_WINDOW_SIZE : FULL_WINDOW_SIZE);
   } catch (error) {
