@@ -4,6 +4,10 @@ node_modules/
 # Production build
 dist/
 
+# Tauri / Rust build output
+src-tauri/target/
+src-tauri/gen/schemas/
+
 # TypeScript / Vite caches
 *.tsbuildinfo
 .vite/

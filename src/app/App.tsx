@@ -8,6 +8,7 @@ import { CUSTOM_CATEGORY_ID, getCategoryLabel, normalizeCategoryId } from '../co
 import { DEFAULT_BREAK_MINUTES, DEFAULT_FOCUS_MINUTES } from '../constants/durations';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useTimer } from '../hooks/useTimer';
+import { applyDesktopWindowMode } from '../services/desktopWindow';
 import { localSessionStore } from '../services/sessionStorage';
 import { formatDuration, formatSessionTime, minutesToSeconds } from '../services/time';
 import type { FocusSession, FinishReason } from '../types/session';
@@ -80,6 +81,11 @@ export function App() {
 
   const refreshSessions = useCallback(() => {
     setSessions(localSessionStore.listSessions());
+  }, []);
+
+  const updateDisplayMode = useCallback((nextMode: 'full' | 'mini') => {
+    setDisplayMode(nextMode);
+    void applyDesktopWindowMode(nextMode);
   }, []);
 
   const saveFocusSession = useCallback(
@@ -304,7 +310,7 @@ export function App() {
                 Reset
               </button>
             ) : null}
-            <button className="quiet-action mini-expand-button" onClick={() => setDisplayMode('full')} type="button">
+            <button className="quiet-action mini-expand-button" onClick={() => updateDisplayMode('full')} type="button">
               Expand
             </button>
           </div>
@@ -444,7 +450,7 @@ export function App() {
         </div>
 
         <aside className="secondary-column">
-          <button className="quiet-action small mode-toggle-button" onClick={() => setDisplayMode('mini')} type="button">
+          <button className="quiet-action small mode-toggle-button" onClick={() => updateDisplayMode('mini')} type="button">
             Mini
           </button>
           <TaskForm config={normalizedConfig} disabled={formDisabled} onChange={setConfig} />
