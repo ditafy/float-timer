@@ -9,7 +9,7 @@ import { DEFAULT_BREAK_MINUTES, DEFAULT_FOCUS_MINUTES } from '../constants/durat
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useTimer } from '../hooks/useTimer';
 import { localSessionStore } from '../services/sessionStorage';
-import { formatDuration, minutesToSeconds } from '../services/time';
+import { formatDuration, formatSessionTime, minutesToSeconds } from '../services/time';
 import type { FocusSession, FinishReason } from '../types/session';
 import type { TimerConfig, TimerSnapshot } from '../types/timer';
 
@@ -30,6 +30,7 @@ export function App() {
   const [config, setConfig] = useLocalStorage<TimerConfig>('float-timer.config.v1', DEFAULT_CONFIG);
   const [sessions, setSessions] = useState<FocusSession[]>(() => localSessionStore.listSessions());
   const [pendingBreakSession, setPendingBreakSession] = useState<FocusSession | null>(null);
+  const [view, setView] = useState<'timer' | 'history'>('timer');
   const normalizedConfig = useMemo<TimerConfig>(
     () => ({
       ...config,
@@ -167,26 +168,20 @@ export function App() {
     refreshSessions();
   };
 
-  return (
-    <main className="app-shell">
-      <section className="workspace">
-        <div className="primary-column">
-          <TimerDisplay config={normalizedConfig} snapshot={timer.snapshot} />
-          <TimerControls
-            canStart={canStart}
-            onFinish={finishFocus}
-            onPause={timer.pause}
-            onReset={() => {
-              setPendingBreakSession(null);
-              timer.reset();
-            }}
-            onResume={timer.resume}
-            onStart={startFocus}
-            snapshot={timer.snapshot}
-          />
-          {pendingBreakSession ? (
-            <BreakPrompt onSkipBreak={skipBreak} onStartBreak={startBreak} session={pendingBreakSession} />
-          ) : null}
+  if (view === 'history') {
+    return (
+      <main className="app-shell">
+        <section className="history-view" aria-label="History and stats">
+          <div className="history-view-header">
+            <div>
+              <h1>History</h1>
+              <p>{sessions.length === 0 ? 'Completed focus sessions will appear here.' : `${sessions.length} saved sessions`}</p>
+            </div>
+            <button className="quiet-action small" onClick={() => setView('timer')} type="button">
+              Back
+            </button>
+          </div>
+
           <section className="stats-strip" aria-label="Focus stats">
             <div>
               <span>Total focus</span>
@@ -201,11 +196,69 @@ export function App() {
               <strong>{stats.breaksStarted}</strong>
             </div>
           </section>
+
+          <section className="panel history-panel full-history-panel" aria-label="Full focus history">
+            <div className="section-heading">
+              <div>
+                <h2>Sessions</h2>
+                <p>{sessions.length === 0 ? 'No sessions saved yet.' : 'Full session history'}</p>
+              </div>
+              {sessions.length > 0 ? (
+                <button className="quiet-action small" onClick={clearHistory} type="button">
+                  Clear
+                </button>
+              ) : null}
+            </div>
+
+            <div className="history-list">
+              {sessions.map((session) => (
+                <article className="history-item" key={session.id}>
+                  <div>
+                    <h3>{session.taskName}</h3>
+                    <p>
+                      {session.categoryLabel} · {formatSessionTime(session.endedAt)}
+                    </p>
+                  </div>
+                  <div className="history-stats">
+                    <strong>{formatDuration(session.actualDurationSeconds)}</strong>
+                    <span>{session.breakStarted ? 'Break started' : session.breakSeconds > 0 ? 'Break skipped' : 'No break'}</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="app-shell">
+      <section className="workspace">
+        <div className="primary-column">
+          <TimerDisplay config={normalizedConfig} snapshot={timer.snapshot} />
+          {!pendingBreakSession ? (
+            <TimerControls
+              canStart={canStart}
+              onFinish={finishFocus}
+              onPause={timer.pause}
+              onReset={() => {
+                setPendingBreakSession(null);
+                timer.reset();
+              }}
+              onResume={timer.resume}
+              onStart={startFocus}
+              snapshot={timer.snapshot}
+            />
+          ) : null}
+          {pendingBreakSession ? (
+            <BreakPrompt onSkipBreak={skipBreak} onStartBreak={startBreak} session={pendingBreakSession} />
+          ) : null}
         </div>
 
         <aside className="secondary-column">
           <TaskForm config={normalizedConfig} disabled={formDisabled} onChange={setConfig} />
-          <SessionHistory sessions={sessions} onClear={clearHistory} />
+          <SessionHistory sessions={sessions} onView={() => setView('history')} />
         </aside>
       </section>
     </main>
