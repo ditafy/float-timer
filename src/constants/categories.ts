@@ -5,7 +5,7 @@ export const CUSTOM_CATEGORY_ID = 'custom';
 export const TASK_CATEGORIES: TaskCategory[] = [
   { id: 'study', label: 'Study', color: '#7c3aed' },
   { id: 'work', label: 'Work', color: '#2563eb' },
-  { id: 'read', label: 'Read', color: '#0891b2' },
+  { id: 'read', label: 'Personal', color: '#0891b2' },
   { id: CUSTOM_CATEGORY_ID, label: 'Custom', color: '#475569' },
 ];
 

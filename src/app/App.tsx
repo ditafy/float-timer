@@ -68,6 +68,7 @@ export function App() {
   const [sessions, setSessions] = useState<FocusSession[]>(() => localSessionStore.listSessions());
   const [pendingBreakSession, setPendingBreakSession] = useState<FocusSession | null>(null);
   const [view, setView] = useState<'timer' | 'history'>('timer');
+  const [displayMode, setDisplayMode] = useState<'full' | 'mini'>('full');
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation>(null);
   const normalizedConfig = useMemo<TimerConfig>(
     () => ({
@@ -216,6 +217,11 @@ export function App() {
     timer.reset();
   };
 
+  const resetTimer = () => {
+    setPendingBreakSession(null);
+    timer.reset();
+  };
+
   const clearHistory = () => {
     localSessionStore.clearSessions();
     refreshSessions();
@@ -235,6 +241,77 @@ export function App() {
 
     setDeleteConfirmation(null);
   };
+
+  if (displayMode === 'mini') {
+    const isIdle = timer.snapshot.status === 'idle';
+    const miniDisplaySeconds =
+      isIdle && normalizedConfig.mode === 'countdown'
+        ? normalizedConfig.focusDurationSeconds ?? 0
+        : timer.snapshot.displaySeconds;
+    const miniTaskName = normalizedConfig.taskName.trim() || 'Ready when you are';
+
+    return (
+      <main className="app-shell mini-app-shell">
+        <section className="mini-window" aria-label="Mini Pomodoro timer">
+          <div className="mini-timer-content">
+            {pendingBreakSession ? (
+              <>
+                <h1>Focus complete</h1>
+                <div className="mini-break-title">Start break?</div>
+              </>
+            ) : (
+              <>
+                <h1>{miniTaskName}</h1>
+                <div className="mini-time-readout" aria-live="polite">
+                  {formatDuration(miniDisplaySeconds)}
+                </div>
+              </>
+            )}
+          </div>
+          <div className="mini-controls" aria-label="Mini timer controls">
+            {pendingBreakSession ? (
+              <>
+                <button className="primary-action" onClick={startBreak} type="button">
+                  Start break
+                </button>
+                <button className="quiet-action" onClick={skipBreak} type="button">
+                  Skip
+                </button>
+              </>
+            ) : null}
+            {!pendingBreakSession && timer.snapshot.status === 'idle' ? (
+              <button className="primary-action" disabled={!canStart} onClick={startFocus} type="button">
+                Start
+              </button>
+            ) : null}
+            {!pendingBreakSession && timer.snapshot.status === 'running' ? (
+              <button onClick={timer.pause} type="button">
+                Pause
+              </button>
+            ) : null}
+            {!pendingBreakSession && timer.snapshot.status === 'paused' ? (
+              <button className="primary-action" onClick={timer.resume} type="button">
+                Resume
+              </button>
+            ) : null}
+            {!pendingBreakSession && (timer.snapshot.status === 'running' || timer.snapshot.status === 'paused') ? (
+              <button onClick={finishFocus} type="button">
+                Finish
+              </button>
+            ) : null}
+            {!pendingBreakSession && timer.snapshot.status === 'finished' ? (
+              <button className="quiet-action" onClick={resetTimer} type="button">
+                Reset
+              </button>
+            ) : null}
+            <button className="quiet-action mini-expand-button" onClick={() => setDisplayMode('full')} type="button">
+              Expand
+            </button>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   if (view === 'history') {
     return (
@@ -355,10 +432,7 @@ export function App() {
               canStart={canStart}
               onFinish={finishFocus}
               onPause={timer.pause}
-              onReset={() => {
-                setPendingBreakSession(null);
-                timer.reset();
-              }}
+              onReset={resetTimer}
               onResume={timer.resume}
               onStart={startFocus}
               snapshot={timer.snapshot}
@@ -370,6 +444,9 @@ export function App() {
         </div>
 
         <aside className="secondary-column">
+          <button className="quiet-action small mode-toggle-button" onClick={() => setDisplayMode('mini')} type="button">
+            Mini
+          </button>
           <TaskForm config={normalizedConfig} disabled={formDisabled} onChange={setConfig} />
           <SessionHistory sessions={sessions} onView={() => setView('history')} />
         </aside>
