@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BreakPrompt } from '../components/BreakPrompt';
 import { SessionHistory } from '../components/SessionHistory';
 import { TaskForm } from '../components/TaskForm';
@@ -8,7 +8,18 @@ import { CUSTOM_CATEGORY_ID, getCategoryLabel, normalizeCategoryId } from '../co
 import { DEFAULT_BREAK_MINUTES, DEFAULT_FOCUS_MINUTES } from '../constants/durations';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useTimer } from '../hooks/useTimer';
-import { applyDesktopWindowMode } from '../services/desktopWindow';
+import {
+  applyDesktopWindowMode,
+  getDesktopWindowRole,
+  listenToMiniWindowActions,
+  listenToMiniWindowState,
+  listenToMiniWindowStateRequests,
+  publishMiniWindowState,
+  requestMiniWindowState,
+  sendMiniWindowAction,
+  type MiniWindowAction,
+  type MiniWindowState,
+} from '../services/desktopWindow';
 import { localSessionStore } from '../services/sessionStorage';
 import { formatDuration, formatSessionTime, minutesToSeconds } from '../services/time';
 import type { FocusSession, FinishReason } from '../types/session';
@@ -64,6 +75,20 @@ function formatStatDuration(totalSeconds: number): string {
   return `${minutes}m`;
 }
 
+function getLiveDisplaySeconds(snapshot: TimerSnapshot): number {
+  if (snapshot.status !== 'running' || !snapshot.startedAt) {
+    return snapshot.displaySeconds;
+  }
+
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - snapshot.startedAt - snapshot.accumulatedPausedMs) / 1000));
+
+  if (snapshot.mode === 'countdown' && snapshot.durationSeconds !== null) {
+    return Math.max(snapshot.durationSeconds - elapsedSeconds, 0);
+  }
+
+  return elapsedSeconds;
+}
+
 export function App() {
   const [config, setConfig] = useLocalStorage<TimerConfig>('float-timer.config.v1', DEFAULT_CONFIG);
   const [sessions, setSessions] = useState<FocusSession[]>(() => localSessionStore.listSessions());
@@ -71,6 +96,11 @@ export function App() {
   const [view, setView] = useState<'timer' | 'history'>('timer');
   const [displayMode, setDisplayMode] = useState<'full' | 'mini'>('full');
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation>(null);
+  const desktopWindowRole = useMemo(() => getDesktopWindowRole(), []);
+  const isMiniDesktopWindow = desktopWindowRole === 'mini';
+  const isBrowserWindow = desktopWindowRole === 'browser';
+  const [remoteMiniState, setRemoteMiniState] = useState<MiniWindowState | null>(null);
+  const [miniRenderTick, setMiniRenderTick] = useState(0);
   const normalizedConfig = useMemo<TimerConfig>(
     () => ({
       ...config,
@@ -84,9 +114,12 @@ export function App() {
   }, []);
 
   const updateDisplayMode = useCallback((nextMode: 'full' | 'mini') => {
-    setDisplayMode(nextMode);
+    if (isBrowserWindow) {
+      setDisplayMode(nextMode);
+    }
+
     void applyDesktopWindowMode(nextMode);
-  }, []);
+  }, [isBrowserWindow]);
 
   const saveFocusSession = useCallback(
     (snapshot: TimerSnapshot, finishReason: FinishReason, shouldPromptBreak: boolean) => {
@@ -228,6 +261,40 @@ export function App() {
     timer.reset();
   };
 
+  const handleMiniWindowAction = useCallback(
+    (action: MiniWindowAction) => {
+      switch (action) {
+        case 'start':
+          startFocus();
+          break;
+        case 'pause':
+          timer.pause();
+          break;
+        case 'resume':
+          timer.resume();
+          break;
+        case 'finish':
+          finishFocus();
+          break;
+        case 'reset':
+          resetTimer();
+          break;
+        case 'start-break':
+          startBreak();
+          break;
+        case 'skip-break':
+          skipBreak();
+          break;
+      }
+    },
+    [finishFocus, skipBreak, startBreak, timer],
+  );
+  const miniWindowActionRef = useRef(handleMiniWindowAction);
+
+  useEffect(() => {
+    miniWindowActionRef.current = handleMiniWindowAction;
+  }, [handleMiniWindowAction]);
+
   const clearHistory = () => {
     localSessionStore.clearSessions();
     refreshSessions();
@@ -248,19 +315,122 @@ export function App() {
     setDeleteConfirmation(null);
   };
 
-  if (displayMode === 'mini') {
-    const isIdle = timer.snapshot.status === 'idle';
+  const miniWindowState = useMemo<MiniWindowState>(
+    () => ({
+      config: normalizedConfig,
+      snapshot: timer.snapshot,
+      canStart,
+      pendingBreakSession,
+    }),
+    [canStart, normalizedConfig, pendingBreakSession, timer.snapshot],
+  );
+  const miniWindowStateRef = useRef(miniWindowState);
+
+  useEffect(() => {
+    miniWindowStateRef.current = miniWindowState;
+  }, [miniWindowState]);
+
+  useEffect(() => {
+    if (isBrowserWindow || isMiniDesktopWindow) {
+      return;
+    }
+
+    void publishMiniWindowState(miniWindowState);
+  }, [isBrowserWindow, isMiniDesktopWindow, miniWindowState]);
+
+  useEffect(() => {
+    if (!isMiniDesktopWindow) {
+      return;
+    }
+
+    let unlisten: (() => void) | null = null;
+    let cancelled = false;
+
+    void listenToMiniWindowState((state) => setRemoteMiniState(state)).then((nextUnlisten) => {
+      if (cancelled) {
+        nextUnlisten?.();
+      } else {
+        unlisten = nextUnlisten;
+      }
+    });
+    void requestMiniWindowState();
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [isMiniDesktopWindow]);
+
+  useEffect(() => {
+    if (isBrowserWindow || isMiniDesktopWindow) {
+      return;
+    }
+
+    let unlistenActions: (() => void) | null = null;
+    let unlistenRequests: (() => void) | null = null;
+    let cancelled = false;
+
+    void listenToMiniWindowActions((action) => miniWindowActionRef.current(action)).then((nextUnlisten) => {
+      if (cancelled) {
+        nextUnlisten?.();
+      } else {
+        unlistenActions = nextUnlisten;
+      }
+    });
+    void listenToMiniWindowStateRequests(() => {
+      void publishMiniWindowState(miniWindowStateRef.current);
+    }).then((nextUnlisten) => {
+      if (cancelled) {
+        nextUnlisten?.();
+      } else {
+        unlistenRequests = nextUnlisten;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unlistenActions?.();
+      unlistenRequests?.();
+    };
+  }, [isBrowserWindow, isMiniDesktopWindow]);
+
+  useEffect(() => {
+    if (!isMiniDesktopWindow || remoteMiniState?.snapshot.status !== 'running') {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => setMiniRenderTick((tick) => tick + 1), 250);
+
+    return () => window.clearInterval(intervalId);
+  }, [isMiniDesktopWindow, remoteMiniState?.snapshot.status]);
+
+  if (displayMode === 'mini' || isMiniDesktopWindow) {
+    const activeMiniState = isMiniDesktopWindow ? remoteMiniState : miniWindowState;
+    const activeConfig = activeMiniState?.config ?? normalizedConfig;
+    const activeSnapshot = activeMiniState?.snapshot ?? timer.snapshot;
+    const activePendingBreakSession = activeMiniState?.pendingBreakSession ?? null;
+    const activeCanStart = activeMiniState?.canStart ?? false;
+    const isIdle = activeSnapshot.status === 'idle';
     const miniDisplaySeconds =
-      isIdle && normalizedConfig.mode === 'countdown'
-        ? normalizedConfig.focusDurationSeconds ?? 0
-        : timer.snapshot.displaySeconds;
-    const miniTaskName = normalizedConfig.taskName.trim() || 'Ready when you are';
+      isIdle && activeConfig.mode === 'countdown'
+        ? activeConfig.focusDurationSeconds ?? 0
+        : isMiniDesktopWindow
+          ? getLiveDisplaySeconds(activeSnapshot) + miniRenderTick * 0
+          : activeSnapshot.displaySeconds;
+    const miniTaskName = activeConfig.taskName.trim() || 'Ready when you are';
+    const sendMiniAction = (action: MiniWindowAction) => {
+      if (isMiniDesktopWindow) {
+        void sendMiniWindowAction(action);
+      } else {
+        handleMiniWindowAction(action);
+      }
+    };
 
     return (
       <main className="app-shell mini-app-shell">
         <section className="mini-window" aria-label="Mini Pomodoro timer">
           <div className="mini-timer-content">
-            {pendingBreakSession ? (
+            {activePendingBreakSession ? (
               <>
                 <h1>Focus complete</h1>
                 <div className="mini-break-title">Start break?</div>
@@ -275,38 +445,38 @@ export function App() {
             )}
           </div>
           <div className="mini-controls" aria-label="Mini timer controls">
-            {pendingBreakSession ? (
+            {activePendingBreakSession ? (
               <>
-                <button className="primary-action" onClick={startBreak} type="button">
+                <button className="primary-action" onClick={() => sendMiniAction('start-break')} type="button">
                   Start
                 </button>
-                <button className="quiet-action" onClick={skipBreak} type="button">
+                <button className="quiet-action" onClick={() => sendMiniAction('skip-break')} type="button">
                   Skip
                 </button>
               </>
             ) : null}
-            {!pendingBreakSession && timer.snapshot.status === 'idle' ? (
-              <button className="primary-action" disabled={!canStart} onClick={startFocus} type="button">
+            {!activePendingBreakSession && activeSnapshot.status === 'idle' ? (
+              <button className="primary-action" disabled={!activeCanStart} onClick={() => sendMiniAction('start')} type="button">
                 Start
               </button>
             ) : null}
-            {!pendingBreakSession && timer.snapshot.status === 'running' ? (
-              <button onClick={timer.pause} type="button">
+            {!activePendingBreakSession && activeSnapshot.status === 'running' ? (
+              <button onClick={() => sendMiniAction('pause')} type="button">
                 Pause
               </button>
             ) : null}
-            {!pendingBreakSession && timer.snapshot.status === 'paused' ? (
-              <button className="primary-action" onClick={timer.resume} type="button">
+            {!activePendingBreakSession && activeSnapshot.status === 'paused' ? (
+              <button className="primary-action" onClick={() => sendMiniAction('resume')} type="button">
                 Resume
               </button>
             ) : null}
-            {!pendingBreakSession && (timer.snapshot.status === 'running' || timer.snapshot.status === 'paused') ? (
-              <button onClick={finishFocus} type="button">
+            {!activePendingBreakSession && (activeSnapshot.status === 'running' || activeSnapshot.status === 'paused') ? (
+              <button onClick={() => sendMiniAction('finish')} type="button">
                 Finish
               </button>
             ) : null}
-            {!pendingBreakSession && timer.snapshot.status === 'finished' ? (
-              <button className="quiet-action" onClick={resetTimer} type="button">
+            {!activePendingBreakSession && activeSnapshot.status === 'finished' ? (
+              <button className="quiet-action" onClick={() => sendMiniAction('reset')} type="button">
                 Reset
               </button>
             ) : null}

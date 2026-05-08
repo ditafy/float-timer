@@ -1,25 +1,48 @@
-import { PhysicalPosition, type PhysicalSize, LogicalSize } from '@tauri-apps/api/dpi';
-import { currentMonitor, getCurrentWindow, primaryMonitor, type Window as TauriWindow } from '@tauri-apps/api/window';
-import type { UnlistenFn } from '@tauri-apps/api/event';
+import { emitTo, listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { LogicalSize, PhysicalPosition, type PhysicalSize } from '@tauri-apps/api/dpi';
+import { currentMonitor, getCurrentWindow, primaryMonitor, Window as TauriWindow } from '@tauri-apps/api/window';
+import type { FocusSession } from '../types/session';
+import type { TimerConfig, TimerSnapshot } from '../types/timer';
 
-type DesktopWindowMode = 'full' | 'mini';
+export type DesktopWindowMode = 'full' | 'mini';
+export type DesktopWindowRole = 'browser' | 'full' | 'mini';
+export type MiniWindowAction = 'start' | 'pause' | 'resume' | 'finish' | 'reset' | 'start-break' | 'skip-break';
+export type MiniWindowState = {
+  config: TimerConfig;
+  snapshot: TimerSnapshot;
+  canStart: boolean;
+  pendingBreakSession: FocusSession | null;
+};
+
 type StoredMiniWindowPosition = {
   x: number;
   y: number;
 };
 
+const FULL_WINDOW_LABEL = 'main';
+const MINI_WINDOW_LABEL = 'mini';
 const FULL_WINDOW_SIZE = new LogicalSize(1200, 760);
 const FULL_MIN_WINDOW_SIZE = new LogicalSize(900, 620);
 const MINI_WINDOW_SIZE = new LogicalSize(350, 160);
 const MINI_MIN_WINDOW_SIZE = new LogicalSize(350, 160);
 const MINI_MAX_WINDOW_SIZE = new LogicalSize(900, 320);
 const MINI_WINDOW_POSITION_KEY = 'float-timer.mini-window-position.v1';
+const MINI_STATE_EVENT = 'float-timer-mini-state';
+const MINI_STATE_REQUEST_EVENT = 'float-timer-mini-state-request';
+const MINI_ACTION_EVENT = 'float-timer-mini-action';
 
 let miniMoveUnlisten: UnlistenFn | null = null;
-let activeMode: DesktopWindowMode = 'full';
 
 function isTauriRuntime(): boolean {
   return typeof window !== 'undefined' && Boolean((window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
+}
+
+export function getDesktopWindowRole(): DesktopWindowRole {
+  if (!isTauriRuntime()) {
+    return 'browser';
+  }
+
+  return getCurrentWindow().label === MINI_WINDOW_LABEL ? 'mini' : 'full';
 }
 
 function readStoredMiniPosition(): StoredMiniWindowPosition | null {
@@ -80,7 +103,7 @@ function isPositionVisible(
   );
 }
 
-async function restoreMiniWindowPosition(appWindow: TauriWindow): Promise<void> {
+async function restoreMiniWindowPosition(miniWindow: TauriWindow): Promise<void> {
   const storedPosition = readStoredMiniPosition();
 
   if (!storedPosition) {
@@ -93,25 +116,21 @@ async function restoreMiniWindowPosition(appWindow: TauriWindow): Promise<void> 
     return;
   }
 
-  const windowSize = await appWindow.outerSize();
+  const windowSize = await miniWindow.outerSize();
 
   if (!isPositionVisible(storedPosition, windowSize, monitor.workArea)) {
     return;
   }
 
-  await appWindow.setPosition(new PhysicalPosition(storedPosition.x, storedPosition.y));
+  await miniWindow.setPosition(new PhysicalPosition(storedPosition.x, storedPosition.y));
 }
 
-async function startMiniMovePersistence(appWindow: TauriWindow): Promise<void> {
+async function startMiniMovePersistence(miniWindow: TauriWindow): Promise<void> {
   if (miniMoveUnlisten) {
     return;
   }
 
-  miniMoveUnlisten = await appWindow.onMoved(({ payload }) => {
-    if (activeMode !== 'mini') {
-      return;
-    }
-
+  miniMoveUnlisten = await miniWindow.onMoved(({ payload }) => {
     saveMiniPosition({
       x: payload.x,
       y: payload.y,
@@ -124,33 +143,118 @@ function stopMiniMovePersistence(): void {
   miniMoveUnlisten = null;
 }
 
+async function getRequiredWindow(label: string): Promise<TauriWindow> {
+  const appWindow = await TauriWindow.getByLabel(label);
+
+  if (!appWindow) {
+    throw new Error(`Unable to find Tauri window "${label}".`);
+  }
+
+  return appWindow;
+}
+
+async function configureMiniWindow(miniWindow: TauriWindow): Promise<void> {
+  await miniWindow.setMinSize(MINI_MIN_WINDOW_SIZE);
+  await miniWindow.setMaxSize(MINI_MAX_WINDOW_SIZE);
+  await miniWindow.setResizable(true);
+  await miniWindow.setAlwaysOnTop(true);
+  await miniWindow.setSize(MINI_WINDOW_SIZE);
+  await restoreMiniWindowPosition(miniWindow);
+  await startMiniMovePersistence(miniWindow);
+}
+
+async function configureFullWindow(fullWindow: TauriWindow): Promise<void> {
+  stopMiniMovePersistence();
+  await fullWindow.setMinSize(FULL_MIN_WINDOW_SIZE);
+  await fullWindow.setMaxSize(null);
+  await fullWindow.setResizable(true);
+  await fullWindow.setAlwaysOnTop(false);
+  await fullWindow.setSize(FULL_WINDOW_SIZE);
+  await fullWindow.center();
+}
+
 export async function applyDesktopWindowMode(mode: DesktopWindowMode): Promise<void> {
   if (!isTauriRuntime()) {
     return;
   }
 
-  const appWindow = getCurrentWindow();
-
   try {
-    activeMode = mode;
-
-    if (mode === 'full') {
-      stopMiniMovePersistence();
-    }
-
-    await appWindow.setMinSize(mode === 'mini' ? MINI_MIN_WINDOW_SIZE : FULL_MIN_WINDOW_SIZE);
-    await appWindow.setMaxSize(mode === 'mini' ? MINI_MAX_WINDOW_SIZE : null);
-    await appWindow.setResizable(true);
-    await appWindow.setAlwaysOnTop(mode === 'mini');
-    await appWindow.setSize(mode === 'mini' ? MINI_WINDOW_SIZE : FULL_WINDOW_SIZE);
+    const fullWindow = await getRequiredWindow(FULL_WINDOW_LABEL);
+    const miniWindow = await getRequiredWindow(MINI_WINDOW_LABEL);
 
     if (mode === 'mini') {
-      await restoreMiniWindowPosition(appWindow);
-      await startMiniMovePersistence(appWindow);
-    } else {
-      await appWindow.center();
+      await configureMiniWindow(miniWindow);
+      await miniWindow.show();
+      await miniWindow.setFocus();
+      await fullWindow.hide();
+      return;
     }
+
+    await configureFullWindow(fullWindow);
+    await fullWindow.show();
+    await fullWindow.setFocus();
+    await miniWindow.hide();
   } catch (error) {
     console.warn('Unable to update Tauri window mode.', error);
   }
+}
+
+export async function publishMiniWindowState(state: MiniWindowState): Promise<void> {
+  if (!isTauriRuntime()) {
+    return;
+  }
+
+  try {
+    await emitTo(MINI_WINDOW_LABEL, MINI_STATE_EVENT, state);
+  } catch (error) {
+    console.warn('Unable to publish Mini window state.', error);
+  }
+}
+
+export async function requestMiniWindowState(): Promise<void> {
+  if (!isTauriRuntime()) {
+    return;
+  }
+
+  try {
+    await emitTo(FULL_WINDOW_LABEL, MINI_STATE_REQUEST_EVENT);
+  } catch (error) {
+    console.warn('Unable to request Mini window state.', error);
+  }
+}
+
+export async function sendMiniWindowAction(action: MiniWindowAction): Promise<void> {
+  if (!isTauriRuntime()) {
+    return;
+  }
+
+  try {
+    await emitTo(FULL_WINDOW_LABEL, MINI_ACTION_EVENT, action);
+  } catch (error) {
+    console.warn('Unable to send Mini window action.', error);
+  }
+}
+
+export async function listenToMiniWindowState(handler: (state: MiniWindowState) => void): Promise<UnlistenFn | null> {
+  if (!isTauriRuntime()) {
+    return null;
+  }
+
+  return listen<MiniWindowState>(MINI_STATE_EVENT, ({ payload }) => handler(payload));
+}
+
+export async function listenToMiniWindowActions(handler: (action: MiniWindowAction) => void): Promise<UnlistenFn | null> {
+  if (!isTauriRuntime()) {
+    return null;
+  }
+
+  return listen<MiniWindowAction>(MINI_ACTION_EVENT, ({ payload }) => handler(payload));
+}
+
+export async function listenToMiniWindowStateRequests(handler: () => void): Promise<UnlistenFn | null> {
+  if (!isTauriRuntime()) {
+    return null;
+  }
+
+  return listen(MINI_STATE_REQUEST_EVENT, handler);
 }

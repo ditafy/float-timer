@@ -20,6 +20,20 @@
         "minHeight": 620,
         "resizable": true,
         "decorations": true
+      },
+      {
+        "label": "mini",
+        "title": "Float Timer",
+        "width": 350,
+        "height": 160,
+        "minWidth": 350,
+        "minHeight": 160,
+        "maxWidth": 900,
+        "maxHeight": 320,
+        "resizable": true,
+        "decorations": true,
+        "alwaysOnTop": true,
+        "visible": false
       }
     ],
     "security": {
