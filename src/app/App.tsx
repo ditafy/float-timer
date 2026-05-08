@@ -278,7 +278,7 @@ export function App() {
             {pendingBreakSession ? (
               <>
                 <button className="primary-action" onClick={startBreak} type="button">
-                  Start break
+                  Start
                 </button>
                 <button className="quiet-action" onClick={skipBreak} type="button">
                   Skip

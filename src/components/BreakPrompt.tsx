@@ -16,7 +16,7 @@ export function BreakPrompt({ session, onStartBreak, onSkipBreak }: BreakPromptP
       </div>
       <div className="prompt-actions">
         <button className="primary-action" onClick={onStartBreak} type="button">
-          Start break
+          Start
         </button>
         <button className="quiet-action" onClick={onSkipBreak} type="button">
           Skip

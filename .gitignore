@@ -6,7 +6,7 @@ dist/
 
 # Tauri / Rust build output
 src-tauri/target/
-src-tauri/gen/schemas/
+src-tauri/gen/
 
 # TypeScript / Vite caches
 *.tsbuildinfo
@@ -36,3 +36,6 @@ pnpm-debug.log*
 
 # Local-only config
 *.local
+
+# Vercel local project settings
+.vercel/
