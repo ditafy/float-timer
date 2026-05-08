@@ -17,6 +17,7 @@ import {
   publishMiniWindowState,
   requestMiniWindowState,
   sendMiniWindowAction,
+  startMiniWindowDrag,
   type MiniWindowAction,
   type MiniWindowState,
 } from '../services/desktopWindow';
@@ -425,20 +426,36 @@ export function App() {
         handleMiniWindowAction(action);
       }
     };
+    const handleMiniPointerDown = (event: React.PointerEvent<HTMLElement>) => {
+      if (!isMiniDesktopWindow || event.button !== 0) {
+        return;
+      }
+
+      if ((event.target as HTMLElement).closest('button')) {
+        return;
+      }
+
+      void startMiniWindowDrag();
+    };
 
     return (
       <main className="app-shell mini-app-shell">
-        <section className="mini-window" aria-label="Mini Pomodoro timer">
-          <div className="mini-timer-content">
+        <section
+          className="mini-window"
+          aria-label="Mini Pomodoro timer"
+          data-tauri-drag-region
+          onPointerDown={handleMiniPointerDown}
+        >
+          <div className="mini-timer-content" data-tauri-drag-region>
             {activePendingBreakSession ? (
               <>
-                <h1>Focus complete</h1>
-                <div className="mini-break-title">Start break?</div>
+                <h1 data-tauri-drag-region>Focus complete</h1>
+                <div className="mini-break-title" data-tauri-drag-region>Start break?</div>
               </>
             ) : (
               <>
-                <h1>{miniTaskName}</h1>
-                <div className="mini-time-readout" aria-live="polite">
+                <h1 data-tauri-drag-region>{miniTaskName}</h1>
+                <div className="mini-time-readout" aria-live="polite" data-tauri-drag-region>
                   {formatDuration(miniDisplaySeconds)}
                 </div>
               </>

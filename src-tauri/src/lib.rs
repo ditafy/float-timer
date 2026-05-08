@@ -1,8 +1,20 @@
-use tauri::Manager;
+use tauri::{Manager, window::Color};
+
+fn make_mini_window_transparent(app: &tauri::App) {
+    if let Some(mini_window) = app.get_webview_window("mini") {
+        let transparent = Some(Color(0, 0, 0, 0));
+        let _ = mini_window.set_background_color(transparent);
+        let _ = mini_window.set_shadow(false);
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            make_mini_window_transparent(app);
+            Ok(())
+        })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 match window.label() {

@@ -23,8 +23,8 @@ const FULL_WINDOW_LABEL = 'main';
 const MINI_WINDOW_LABEL = 'mini';
 const FULL_WINDOW_SIZE = new LogicalSize(1200, 760);
 const FULL_MIN_WINDOW_SIZE = new LogicalSize(900, 620);
-const MINI_WINDOW_SIZE = new LogicalSize(350, 160);
-const MINI_MIN_WINDOW_SIZE = new LogicalSize(350, 160);
+const MINI_WINDOW_SIZE = new LogicalSize(300, 130);
+const MINI_MIN_WINDOW_SIZE = new LogicalSize(300, 130);
 const MINI_MAX_WINDOW_SIZE = new LogicalSize(900, 320);
 const MINI_WINDOW_POSITION_KEY = 'float-timer.mini-window-position.v1';
 const MINI_STATE_EVENT = 'float-timer-mini-state';
@@ -257,4 +257,16 @@ export async function listenToMiniWindowStateRequests(handler: () => void): Prom
   }
 
   return listen(MINI_STATE_REQUEST_EVENT, handler);
+}
+
+export async function startMiniWindowDrag(): Promise<void> {
+  if (!isTauriRuntime() || getDesktopWindowRole() !== 'mini') {
+    return;
+  }
+
+  try {
+    await getCurrentWindow().startDragging();
+  } catch (error) {
+    console.warn('Unable to start Mini window drag.', error);
+  }
 }
