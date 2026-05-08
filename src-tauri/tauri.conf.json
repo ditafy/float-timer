@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Float Timer",
   "version": "0.1.0",
-  "identifier": "com.floattimer.app",
+  "identifier": "com.mayuxuan.floattimer.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
